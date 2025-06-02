@@ -61,7 +61,9 @@ const [formData, setFormData] = useState({
     dueDate: '',
     category: 'personal',
     tags: [],
-    subtasks: []
+    subtasks: [],
+    workflowId: 'default',
+    stage: 'todo'
   })
 
 // Default workflow templates
@@ -146,7 +148,7 @@ const [formData, setFormData] = useState({
       localStorage.setItem('taskflow-projects', JSON.stringify([defaultProject]))
     }
 
-    const savedWorkflows = localStorage.getItem('taskflow-workflows')
+const savedWorkflows = localStorage.getItem('taskflow-workflows')
     if (savedWorkflows) {
       setWorkflows(JSON.parse(savedWorkflows))
     } else {
@@ -154,6 +156,11 @@ const [formData, setFormData] = useState({
       const initialWorkflows = Object.values(defaultWorkflows)
       setWorkflows(initialWorkflows)
       localStorage.setItem('taskflow-workflows', JSON.stringify(initialWorkflows))
+    }
+
+    const savedActiveWorkflow = localStorage.getItem('taskflow-active-workflow')
+    if (savedActiveWorkflow) {
+      setActiveWorkflowId(savedActiveWorkflow)
     }
   }, [])
 
@@ -167,21 +174,45 @@ const [formData, setFormData] = useState({
     localStorage.setItem('taskflow-projects', JSON.stringify(projects))
   }, [projects])
 
-  // Save workflows to localStorage whenever workflows change
+// Save workflows to localStorage whenever workflows change
   useEffect(() => {
     localStorage.setItem('taskflow-workflows', JSON.stringify(workflows))
   }, [workflows])
+
+  // Save active workflow to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('taskflow-active-workflow', activeWorkflowId)
+  }, [activeWorkflowId])
 const resetForm = () => {
+    const activeWorkflow = workflows.find(w => w.id === activeWorkflowId) || workflows[0]
+    const firstStage = activeWorkflow?.stages[0]?.id || 'todo'
+    
     setFormData({
       title: '',
       description: '',
       priority: 'medium',
-      status: 'todo',
+      status: firstStage,
       dueDate: '',
       category: 'personal',
       tags: [],
-      subtasks: []
+      subtasks: [],
+      workflowId: activeWorkflowId,
+      stage: firstStage
     })
+  }
+
+  // Get available stages from active workflow
+  const getWorkflowStages = () => {
+    const activeWorkflow = workflows.find(w => w.id === activeWorkflowId)
+    if (activeWorkflow && activeWorkflow.stages) {
+      return activeWorkflow.stages.map(stage => ({
+        value: stage.id,
+        label: stage.name,
+        icon: stage.icon,
+        color: stage.color
+      }))
+    }
+    return statuses
   }
 
   const resetProjectForm = () => {
@@ -192,16 +223,20 @@ const resetForm = () => {
     })
   }
 
-  const handleCreateTask = (e) => {
+const handleCreateTask = (e) => {
     e.preventDefault()
     if (!formData.title.trim()) {
       toast.error('Task title is required')
       return
     }
 
+    const activeWorkflow = workflows.find(w => w.id === activeWorkflowId)
     const newTask = {
       id: Date.now().toString(),
       ...formData,
+      workflowId: activeWorkflowId,
+      stage: formData.stage || formData.status,
+      status: formData.stage || formData.status, // Keep for backward compatibility
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     }
@@ -209,7 +244,7 @@ const resetForm = () => {
     setTasks(prev => [newTask, ...prev])
     setIsCreateModalOpen(false)
     resetForm()
-    toast.success('Task created successfully!')
+    toast.success(`Task created successfully in ${activeWorkflow?.name || 'workflow'}!`)
   }
 
   const handleUpdateTask = (e) => {
@@ -234,16 +269,59 @@ const handleDeleteTask = (taskId) => {
     toast.success('Task deleted successfully!')
   }
 
-  const handleStatusChange = (taskId, newStatus) => {
-    setTasks(prev => prev.map(task => 
-      task.id === taskId 
-        ? { ...task, status: newStatus, updatedAt: new Date().toISOString() }
-        : task
+const handleStatusChange = (taskId, newStatus) => {
+    const task = tasks.find(t => t.id === taskId)
+    if (!task) return
+
+    const taskWorkflow = workflows.find(w => w.id === (task.workflowId || activeWorkflowId))
+    if (!taskWorkflow) {
+      toast.error('Workflow not found')
+      return
+    }
+
+    // Get current stage and validate transition
+    const currentStage = task.stage || task.status
+    const allowedTransitions = taskWorkflow.transitions?.[currentStage] || []
+    
+    if (currentStage !== newStatus && !allowedTransitions.includes(newStatus)) {
+      const currentStageName = taskWorkflow.stages.find(s => s.id === currentStage)?.name || currentStage
+      const newStageName = taskWorkflow.stages.find(s => s.id === newStatus)?.name || newStatus
+      toast.error(`Cannot transition from "${currentStageName}" to "${newStageName}" in this workflow`)
+      return
+    }
+
+    setTasks(prev => prev.map(t => 
+      t.id === taskId 
+        ? { 
+            ...t, 
+            status: newStatus, 
+            stage: newStatus,
+            updatedAt: new Date().toISOString() 
+          }
+        : t
     ))
     
-    if (newStatus === 'completed') {
+    const newStageName = taskWorkflow.stages.find(s => s.id === newStatus)?.name || newStatus
+    if (newStatus === 'completed' || newStageName.toLowerCase().includes('done') || newStageName.toLowerCase().includes('complete')) {
       toast.success('Task completed! 🎉')
+    } else {
+      toast.success(`Task moved to "${newStageName}"`)
     }
+  }
+
+  // Get next available stage for quick transition
+  const getNextStage = (task) => {
+    const taskWorkflow = workflows.find(w => w.id === (task.workflowId || activeWorkflowId))
+    if (!taskWorkflow) return null
+
+    const currentStage = task.stage || task.status
+    const allowedTransitions = taskWorkflow.transitions?.[currentStage] || []
+    
+    if (allowedTransitions.length > 0) {
+      return allowedTransitions[0]
+    }
+    
+    return null
   }
 
   // Subtask management functions
@@ -520,16 +598,20 @@ const openEditModal = (task) => {
     }))
   }
 
-  const getFilteredTasks = () => {
+const getFilteredTasks = () => {
     let filtered = tasks
 
     if (filter !== 'all') {
-      filtered = filtered.filter(task => task.status === filter)
+      filtered = filtered.filter(task => {
+        const taskStage = task.stage || task.status
+        return taskStage === filter
+      })
     }
 
     if (categoryFilter !== 'all') {
       filtered = filtered.filter(task => task.category === categoryFilter)
     }
+    
     // Sort tasks
     filtered.sort((a, b) => {
       switch (sortBy) {
@@ -546,9 +628,29 @@ const openEditModal = (task) => {
         default:
           return 0
       }
-})
+    })
 
     return filtered
+  }
+
+  // Get available filter options based on active workflow
+  const getFilterOptions = () => {
+    const activeWorkflow = workflows.find(w => w.id === activeWorkflowId)
+    if (activeWorkflow && activeWorkflow.stages) {
+      return [
+        { value: 'all', label: 'All Tasks' },
+        ...activeWorkflow.stages.map(stage => ({
+          value: stage.id,
+          label: stage.name
+        }))
+      ]
+    }
+    return [
+      { value: 'all', label: 'All Tasks' },
+      { value: 'todo', label: 'To Do' },
+      { value: 'in-progress', label: 'In Progress' },
+      { value: 'completed', label: 'Completed' }
+    ]
   }
 
   const getAllTags = () => {
@@ -572,8 +674,20 @@ const getPriorityConfig = (priority) => {
     return categories.find(c => c.value === category) || categories.find(c => c.value === 'other')
   }
 
-  const getStatusConfig = (status) => {
-    return statuses.find(s => s.value === status)
+const getStatusConfig = (status, workflowId) => {
+    const workflow = workflows.find(w => w.id === (workflowId || activeWorkflowId))
+    if (workflow && workflow.stages) {
+      const stage = workflow.stages.find(s => s.id === status)
+      if (stage) {
+        return {
+          value: stage.id,
+          label: stage.name,
+          icon: stage.icon,
+          color: `text-[${stage.color}]`
+        }
+      }
+    }
+    return statuses.find(s => s.value === status) || statuses[0]
   }
   const filteredTasks = getFilteredTasks()
   const taskStats = {
@@ -632,13 +746,14 @@ const getPriorityConfig = (priority) => {
               <ApperIcon name="Filter" className="w-4 h-4 text-surface-500" />
               <select
                 value={filter}
-                onChange={(e) => setFilter(e.target.value)}
+onChange={(e) => setFilter(e.target.value)}
                 className="border border-surface-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
               >
-                <option value="all">All Tasks</option>
-                <option value="todo">To Do</option>
-                <option value="in-progress">In Progress</option>
-<option value="completed">Completed</option>
+                {getFilterOptions().map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -717,9 +832,9 @@ const getPriorityConfig = (priority) => {
             </motion.div>
           ) : (
 filteredTasks.map((task, index) => {
-              const priorityConfig = getPriorityConfig(task.priority)
+const priorityConfig = getPriorityConfig(task.priority)
               const categoryConfig = getCategoryConfig(task.category)
-              const statusConfig = getStatusConfig(task.status)
+              const statusConfig = getStatusConfig(task.stage || task.status, task.workflowId)
               const dateLabel = getDateLabel(task.dueDate)
               const isOverdue = task.dueDate && isPast(new Date(task.dueDate)) && task.status !== 'completed'
               return (
@@ -736,10 +851,18 @@ filteredTasks.map((task, index) => {
                     <motion.button
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
-                      onClick={() => {
-                        const nextStatus = task.status === 'todo' ? 'in-progress' : 
-                                         task.status === 'in-progress' ? 'completed' : 'todo'
-                        handleStatusChange(task.id, nextStatus)
+onClick={() => {
+                        const nextStage = getNextStage(task)
+                        if (nextStage) {
+                          handleStatusChange(task.id, nextStage)
+                        } else {
+                          // Fallback to first stage if no transitions available
+                          const taskWorkflow = workflows.find(w => w.id === (task.workflowId || activeWorkflowId))
+                          const firstStage = taskWorkflow?.stages[0]?.id
+                          if (firstStage && firstStage !== (task.stage || task.status)) {
+                            handleStatusChange(task.id, firstStage)
+                          }
+                        }
                       }}
                       className="flex-shrink-0 mt-1"
                     >
@@ -1005,13 +1128,13 @@ filteredTasks.map((task, index) => {
                       Status
                     </label>
                     <select
-                      value={formData.status}
-                      onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+value={formData.status}
+                      onChange={(e) => setFormData({ ...formData, status: e.target.value, stage: e.target.value })}
                       className="w-full border border-surface-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
                     >
-                      {statuses.map(status => (
-                        <option key={status.value} value={status.value}>
-                          {status.label}
+                      {getWorkflowStages().map(stage => (
+                        <option key={stage.value} value={stage.value}>
+                          {stage.label}
                         </option>
                       ))}
                     </select>
@@ -1639,9 +1762,13 @@ filteredTasks.map((task, index) => {
                     <label className="block text-sm font-medium text-surface-700 mb-2">
                       Active Workflow
                     </label>
-                    <select
+<select
                       value={activeWorkflowId}
-                      onChange={(e) => setActiveWorkflowId(e.target.value)}
+                      onChange={(e) => {
+                        setActiveWorkflowId(e.target.value)
+                        localStorage.setItem('taskflow-active-workflow', e.target.value)
+                        toast.success(`Switched to ${workflows.find(w => w.id === e.target.value)?.name || 'workflow'}`)
+                      }}
                       className="w-full border border-surface-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
                     >
                       {workflows.map(workflow => (
