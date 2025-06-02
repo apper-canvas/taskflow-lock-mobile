@@ -17,11 +17,23 @@ const statuses = [
   { value: 'completed', label: 'Completed', icon: 'CheckCircle2', color: 'text-green-600' }
 ]
 
+const categories = [
+  { value: 'work', label: 'Work', color: '#3b82f6', bgColor: 'bg-blue-100', textColor: 'text-blue-700' },
+  { value: 'personal', label: 'Personal', color: '#8b5cf6', bgColor: 'bg-purple-100', textColor: 'text-purple-700' },
+  { value: 'health', label: 'Health', color: '#10b981', bgColor: 'bg-green-100', textColor: 'text-green-700' },
+  { value: 'finance', label: 'Finance', color: '#f59e0b', bgColor: 'bg-yellow-100', textColor: 'text-yellow-700' },
+  { value: 'learning', label: 'Learning', color: '#06b6d4', bgColor: 'bg-cyan-100', textColor: 'text-cyan-700' },
+  { value: 'shopping', label: 'Shopping', color: '#ec4899', bgColor: 'bg-pink-100', textColor: 'text-pink-700' },
+  { value: 'travel', label: 'Travel', color: '#84cc16', bgColor: 'bg-lime-100', textColor: 'text-lime-700' },
+  { value: 'other', label: 'Other', color: '#6b7280', bgColor: 'bg-gray-100', textColor: 'text-gray-700' }
+]
+
 const MainFeature = () => {
   const [tasks, setTasks] = useState([])
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [editingTask, setEditingTask] = useState(null)
-  const [filter, setFilter] = useState('all')
+const [filter, setFilter] = useState('all')
+  const [categoryFilter, setCategoryFilter] = useState('all')
   const [sortBy, setSortBy] = useState('dueDate')
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false)
   const [projects, setProjects] = useState([])
@@ -37,6 +49,8 @@ const [formData, setFormData] = useState({
     priority: 'medium',
     status: 'todo',
     dueDate: '',
+    category: 'personal',
+    tags: [],
     subtasks: []
   })
 
@@ -80,6 +94,8 @@ const resetForm = () => {
       priority: 'medium',
       status: 'todo',
       dueDate: '',
+      category: 'personal',
+      tags: [],
       subtasks: []
     })
   }
@@ -239,6 +255,8 @@ const openEditModal = (task) => {
       priority: task.priority,
       status: task.status,
       dueDate: task.dueDate,
+      category: task.category || 'personal',
+      tags: task.tags || [],
       subtasks: task.subtasks || []
     })
   }
@@ -307,6 +325,26 @@ const openEditModal = (task) => {
     return tasks.filter(task => task.projectId === projectId).length
   }
 
+// Tag management functions
+  const addTagToForm = (tag) => {
+    if (!tag.trim()) return
+    const normalizedTag = tag.trim().toLowerCase()
+    
+    if (!formData.tags.some(t => t.toLowerCase() === normalizedTag)) {
+      setFormData(prev => ({
+        ...prev,
+        tags: [...prev.tags, tag.trim()]
+      }))
+    }
+  }
+
+  const removeTagFromForm = (tagIndex) => {
+    setFormData(prev => ({
+      ...prev,
+      tags: prev.tags.filter((_, index) => index !== tagIndex)
+    }))
+  }
+
   const getFilteredTasks = () => {
     let filtered = tasks
 
@@ -314,6 +352,9 @@ const openEditModal = (task) => {
       filtered = filtered.filter(task => task.status === filter)
     }
 
+    if (categoryFilter !== 'all') {
+      filtered = filtered.filter(task => task.category === categoryFilter)
+    }
     // Sort tasks
     filtered.sort((a, b) => {
       switch (sortBy) {
@@ -330,11 +371,15 @@ const openEditModal = (task) => {
         default:
           return 0
       }
-    })
+})
 
     return filtered
   }
 
+  const getAllTags = () => {
+    const allTags = tasks.flatMap(task => task.tags || [])
+    return [...new Set(allTags)].sort()
+  }
   const getDateLabel = (dateString) => {
     if (!dateString) return null
     const date = new Date(dateString)
@@ -344,14 +389,17 @@ const openEditModal = (task) => {
     return format(date, 'MMM d')
   }
 
-  const getPriorityConfig = (priority) => {
+const getPriorityConfig = (priority) => {
     return priorities.find(p => p.value === priority)
+  }
+
+  const getCategoryConfig = (category) => {
+    return categories.find(c => c.value === category) || categories.find(c => c.value === 'other')
   }
 
   const getStatusConfig = (status) => {
     return statuses.find(s => s.value === status)
   }
-
   const filteredTasks = getFilteredTasks()
   const taskStats = {
     total: tasks.length,
@@ -415,7 +463,24 @@ const openEditModal = (task) => {
                 <option value="all">All Tasks</option>
                 <option value="todo">To Do</option>
                 <option value="in-progress">In Progress</option>
-                <option value="completed">Completed</option>
+<option value="completed">Completed</option>
+              </select>
+            </div>
+
+            {/* Category Filter */}
+            <div className="flex items-center space-x-2">
+              <ApperIcon name="Tag" className="w-4 h-4 text-surface-500" />
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="border border-surface-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+              >
+                <option value="all">All Categories</option>
+                {categories.map(category => (
+                  <option key={category.value} value={category.value}>
+                    {category.label}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -476,12 +541,12 @@ const openEditModal = (task) => {
               </button>
             </motion.div>
           ) : (
-            filteredTasks.map((task, index) => {
+filteredTasks.map((task, index) => {
               const priorityConfig = getPriorityConfig(task.priority)
+              const categoryConfig = getCategoryConfig(task.category)
               const statusConfig = getStatusConfig(task.status)
               const dateLabel = getDateLabel(task.dueDate)
               const isOverdue = task.dueDate && isPast(new Date(task.dueDate)) && task.status !== 'completed'
-
               return (
                 <motion.div
                   key={task.id}
@@ -619,21 +684,37 @@ const openEditModal = (task) => {
                                 'text-surface-600 bg-surface-100'
                               }`}>
                                 <ApperIcon name="Calendar" className="w-3 h-3" />
-                                <span>{dateLabel}</span>
+<span>{dateLabel}</span>
                               </span>
+                            )}
+
+                            {/* Category */}
+                            <span className={`inline-flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-medium ${categoryConfig.textColor} ${categoryConfig.bgColor}`}>
+                              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: categoryConfig.color }}></div>
+                              <span>{categoryConfig.label}</span>
+                            </span>
+
+                            {/* Tags */}
+                            {task.tags && task.tags.length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {task.tags.map((tag, tagIndex) => (
+                                  <span key={tagIndex} className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-surface-200 text-surface-700">
+                                    #{tag}
+                                  </span>
+                                ))}
+                              </div>
                             )}
 
                             {/* Status */}
                             <span className={`inline-flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-medium ${statusConfig.color} bg-surface-100`}>
+<span className={`inline-flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-medium ${statusConfig.color} bg-surface-100`}>
                               <span>{statusConfig.label}</span>
                             </span>
                           </div>
-                        </div>
 
                         {/* Actions */}
                         <div className="flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
                           <motion.button
-                            whileHover={{ scale: 1.1 }}
                             whileTap={{ scale: 0.9 }}
                             onClick={() => openEditModal(task)}
                             className="p-2 rounded-lg hover:bg-surface-100 transition-colors"
@@ -777,6 +858,84 @@ const openEditModal = (task) => {
                   />
 </div>
 
+                {/* Category & Tags */}
+                <div className="grid grid-cols-1 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-surface-700 mb-2">
+                      Category
+                    </label>
+                    <select
+                      value={formData.category}
+                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                      className="w-full border border-surface-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                    >
+                      {categories.map(category => (
+                        <option key={category.value} value={category.value}>
+                          {category.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-surface-700 mb-2">
+                      Tags
+                    </label>
+                    <div className="space-y-2">
+                      {/* Existing Tags */}
+                      {formData.tags && formData.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {formData.tags.map((tag, index) => (
+                            <span key={index} className="inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium bg-surface-200 text-surface-700">
+                              #{tag}
+                              <button
+                                type="button"
+                                onClick={() => removeTagFromForm(index)}
+                                className="ml-1 hover:text-red-500"
+                              >
+                                <ApperIcon name="X" className="w-3 h-3" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {/* Add Tag Input */}
+                      <div className="flex space-x-2">
+                        <input
+                          type="text"
+                          placeholder="Add a tag..."
+                          list="existing-tags"
+                          className="flex-1 border border-surface-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              addTagToForm(e.target.value)
+                              e.target.value = ''
+                            }
+                          }}
+                        />
+                        <datalist id="existing-tags">
+                          {getAllTags().map((tag, index) => (
+                            <option key={index} value={tag} />
+                          ))}
+                        </datalist>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            const input = e.target.parentElement.querySelector('input')
+                            if (input && input.value) {
+                              addTagToForm(input.value)
+                              input.value = ''
+                            }
+                          }}
+                          className="px-3 py-2 bg-surface-100 hover:bg-surface-200 rounded-lg transition-colors"
+                        >
+                          <ApperIcon name="Plus" className="w-4 h-4 text-surface-600" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 {/* Subtasks Section */}
                 <div>
                   <label className="block text-sm font-medium text-surface-700 mb-2">
@@ -865,10 +1024,9 @@ const openEditModal = (task) => {
                   </button>
                 </div>
               </form>
-            </motion.div>
+</motion.div>
           </motion.div>
         )}
-)}
       </AnimatePresence>
 
       {/* Project Management Modal */}
@@ -1031,9 +1189,9 @@ const openEditModal = (task) => {
               </div>
             </motion.div>
           </motion.div>
-        )}
+)}
       </AnimatePresence>
-</div>
+    </div>
   )
 }
 
