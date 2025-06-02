@@ -16,8 +16,11 @@ export default {
           DEFAULT: '#10b981',
           light: '#34d399',
           dark: '#059669'
-        },
+},
         accent: '#f59e0b',
+        background: '#ffffff',
+        foreground: '#0f172a',
+        border: '#e2e8f0',
         surface: {
           50: '#f8fafc',
           100: '#f1f5f9',
