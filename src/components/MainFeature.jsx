@@ -23,7 +23,14 @@ const MainFeature = () => {
   const [editingTask, setEditingTask] = useState(null)
   const [filter, setFilter] = useState('all')
   const [sortBy, setSortBy] = useState('dueDate')
-  
+  const [isProjectModalOpen, setIsProjectModalOpen] = useState(false)
+  const [projects, setProjects] = useState([])
+  const [editingProject, setEditingProject] = useState(null)
+  const [projectFormData, setProjectFormData] = useState({
+    name: '',
+    description: '',
+    color: '#6366f1'
+  })
 const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -33,18 +40,38 @@ const [formData, setFormData] = useState({
     subtasks: []
   })
 
-  // Load tasks from localStorage on component mount
+// Load tasks and projects from localStorage on component mount
   useEffect(() => {
     const savedTasks = localStorage.getItem('taskflow-tasks')
     if (savedTasks) {
       setTasks(JSON.parse(savedTasks))
     }
+    
+    const savedProjects = localStorage.getItem('taskflow-projects')
+    if (savedProjects) {
+      setProjects(JSON.parse(savedProjects))
+    } else {
+      // Initialize with default project
+      const defaultProject = {
+        id: 'default',
+        name: 'Personal',
+        description: 'Personal tasks and projects',
+        color: '#6366f1',
+        createdAt: new Date().toISOString()
+      }
+      setProjects([defaultProject])
+    }
   }, [])
 
-  // Save tasks to localStorage whenever tasks change
+// Save tasks to localStorage whenever tasks change
   useEffect(() => {
     localStorage.setItem('taskflow-tasks', JSON.stringify(tasks))
   }, [tasks])
+
+  // Save projects to localStorage whenever projects change
+  useEffect(() => {
+    localStorage.setItem('taskflow-projects', JSON.stringify(projects))
+  }, [projects])
 
 const resetForm = () => {
     setFormData({
@@ -54,6 +81,14 @@ const resetForm = () => {
       status: 'todo',
       dueDate: '',
       subtasks: []
+    })
+  }
+
+  const resetProjectForm = () => {
+    setProjectFormData({
+      name: '',
+      description: '',
+      color: '#6366f1'
     })
   }
 
@@ -206,6 +241,70 @@ const openEditModal = (task) => {
       dueDate: task.dueDate,
       subtasks: task.subtasks || []
     })
+  }
+
+  const openProjectEditModal = (project) => {
+    setEditingProject(project)
+    setProjectFormData({
+      name: project.name,
+      description: project.description,
+      color: project.color
+    })
+  }
+
+  const handleCreateProject = (e) => {
+    e.preventDefault()
+    if (!projectFormData.name.trim()) {
+      toast.error('Project name is required')
+      return
+    }
+
+    const newProject = {
+      id: Date.now().toString(),
+      ...projectFormData,
+      createdAt: new Date().toISOString()
+    }
+
+    setProjects(prev => [newProject, ...prev])
+    resetProjectForm()
+    toast.success('Project created successfully!')
+  }
+
+  const handleUpdateProject = (e) => {
+    e.preventDefault()
+    if (!projectFormData.name.trim()) {
+      toast.error('Project name is required')
+      return
+    }
+
+    setProjects(prev => prev.map(project => 
+      project.id === editingProject.id 
+        ? { ...project, ...projectFormData }
+        : project
+    ))
+    setEditingProject(null)
+    resetProjectForm()
+    toast.success('Project updated successfully!')
+  }
+
+  const handleDeleteProject = (projectId) => {
+    if (projectId === 'default') {
+      toast.error('Cannot delete the default project')
+      return
+    }
+    
+    setProjects(prev => prev.filter(project => project.id !== projectId))
+    // Move tasks from deleted project to default project
+    setTasks(prev => prev.map(task => 
+      task.projectId === projectId 
+        ? { ...task, projectId: 'default' }
+        : task
+    ))
+    toast.success('Project deleted successfully!')
+  }
+
+  const getProjectTaskCount = (projectId) => {
+    return tasks.filter(task => task.projectId === projectId).length
   }
 
   const getFilteredTasks = () => {
@@ -769,8 +868,172 @@ const openEditModal = (task) => {
             </motion.div>
           </motion.div>
         )}
+)}
       </AnimatePresence>
-    </div>
+
+      {/* Project Management Modal */}
+      <AnimatePresence>
+        {isProjectModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setIsProjectModalOpen(false)
+                setEditingProject(null)
+                resetProjectForm()
+              }
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="bg-white rounded-2xl p-6 sm:p-8 w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl sm:text-2xl font-bold text-surface-900">
+                  Project Management
+                </h2>
+                <button
+                  onClick={() => {
+                    setIsProjectModalOpen(false)
+                    setEditingProject(null)
+                    resetProjectForm()
+                  }}
+                  className="p-2 rounded-lg hover:bg-surface-100 transition-colors"
+                >
+                  <ApperIcon name="X" className="w-5 h-5 text-surface-500" />
+                </button>
+              </div>
+
+              {/* Create/Edit Project Form */}
+              <form onSubmit={editingProject ? handleUpdateProject : handleCreateProject} className="space-y-4 mb-8">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-surface-700 mb-2">
+                      Project Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={projectFormData.name}
+                      onChange={(e) => setProjectFormData({ ...projectFormData, name: e.target.value })}
+                      className="w-full border border-surface-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                      placeholder="Enter project name..."
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-surface-700 mb-2">
+                      Color
+                    </label>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="color"
+                        value={projectFormData.color}
+                        onChange={(e) => setProjectFormData({ ...projectFormData, color: e.target.value })}
+                        className="w-12 h-10 border border-surface-300 rounded-lg cursor-pointer"
+                      />
+                      <input
+                        type="text"
+                        value={projectFormData.color}
+                        onChange={(e) => setProjectFormData({ ...projectFormData, color: e.target.value })}
+                        className="flex-1 border border-surface-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                        placeholder="#6366f1"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-surface-700 mb-2">
+                    Description
+                  </label>
+                  <textarea
+                    value={projectFormData.description}
+                    onChange={(e) => setProjectFormData({ ...projectFormData, description: e.target.value })}
+                    className="w-full border border-surface-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-transparent outline-none resize-none"
+                    rows="3"
+                    placeholder="Enter project description..."
+                  />
+                </div>
+
+                <div className="flex space-x-3">
+                  {editingProject && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingProject(null)
+                        resetProjectForm()
+                      }}
+                      className="flex-1 btn-secondary"
+                    >
+                      Cancel Edit
+                    </button>
+                  )}
+                  <button
+                    type="submit"
+                    className="flex-1 btn-primary"
+                  >
+                    {editingProject ? 'Update Project' : 'Create Project'}
+                  </button>
+                </div>
+              </form>
+
+              {/* Existing Projects List */}
+              <div>
+                <h3 className="text-lg font-semibold text-surface-900 mb-4">Existing Projects</h3>
+                <div className="space-y-3">
+                  {projects.map(project => (
+                    <div key={project.id} className="flex items-center justify-between p-4 bg-surface-50 rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <div 
+                          className="w-4 h-4 rounded-full"
+                          style={{ backgroundColor: project.color }}
+                        ></div>
+                        <div>
+                          <h4 className="font-medium text-surface-900">{project.name}</h4>
+                          {project.description && (
+                            <p className="text-sm text-surface-600">{project.description}</p>
+                          )}
+                          <div className="flex items-center space-x-4 mt-1">
+                            <span className="text-xs text-surface-500">
+                              {getProjectTaskCount(project.id)} tasks
+                            </span>
+                            <span className="text-xs text-surface-500">
+                              Created {format(new Date(project.createdAt), 'MMM d, yyyy')}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => openProjectEditModal(project)}
+                          className="p-2 rounded-lg hover:bg-surface-200 transition-colors"
+                        >
+                          <ApperIcon name="Edit2" className="w-4 h-4 text-surface-500" />
+                        </button>
+                        {project.id !== 'default' && (
+                          <button
+                            onClick={() => handleDeleteProject(project.id)}
+                            className="p-2 rounded-lg hover:bg-red-50 transition-colors"
+                          >
+                            <ApperIcon name="Trash2" className="w-4 h-4 text-red-500" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+</div>
   )
 }
 
