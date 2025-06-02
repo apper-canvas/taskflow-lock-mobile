@@ -747,10 +747,10 @@ const getStatusConfig = (status, workflowId) => {
         transition={{ duration: 0.6, delay: 0.4 }}
         className="bg-white rounded-xl p-4 sm:p-6 shadow-soft border border-surface-200"
       >
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
+<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
           <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
             {/* Filter */}
-<div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2">
               <ApperIcon name="Filter" className="w-4 h-4 text-surface-500" />
               <select
                 value={filter}
@@ -764,6 +764,26 @@ const getStatusConfig = (status, workflowId) => {
                 {getFilterOptions().map(option => (
                   <option key={option.value} value={option.value}>
                     {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Project Filter */}
+            <div className="flex items-center space-x-2">
+              <ApperIcon name="FolderOpen" className="w-4 h-4 text-surface-500" />
+              <select
+                value={formData.projectId || 'all'}
+                onChange={(e) => {
+                  const projectId = e.target.value === 'all' ? null : e.target.value
+                  setFormData(prev => ({ ...prev, projectId }))
+                }}
+                className="border border-surface-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+              >
+                <option value="all">All Projects</option>
+                {projects.map(project => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
                   </option>
                 ))}
               </select>
@@ -801,15 +821,26 @@ const getStatusConfig = (status, workflowId) => {
             </div>
           </div>
 
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setIsCreateModalOpen(true)}
-            className="btn-primary flex items-center space-x-2 justify-center sm:justify-start"
-          >
-            <ApperIcon name="Plus" className="w-4 h-4" />
-            <span>Create Task</span>
-          </motion.button>
+          <div className="flex space-x-3">
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setIsProjectModalOpen(true)}
+              className="btn-secondary flex items-center space-x-2 justify-center sm:justify-start"
+            >
+              <ApperIcon name="FolderOpen" className="w-4 h-4" />
+              <span>Projects</span>
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setIsCreateModalOpen(true)}
+              className="btn-primary flex items-center space-x-2 justify-center sm:justify-start"
+            >
+              <ApperIcon name="Plus" className="w-4 h-4" />
+              <span>Create Task</span>
+            </motion.button>
+          </div>
         </div>
       </motion.div>
 
@@ -1153,7 +1184,7 @@ value={formData.status}
                   </div>
                 </div>
 
-                {/* Due Date */}
+{/* Due Date */}
                 <div>
                   <label className="block text-sm font-medium text-surface-700 mb-2">
                     Due Date
@@ -1164,10 +1195,27 @@ value={formData.status}
                     onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
                     className="w-full border border-surface-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
                   />
-</div>
+                </div>
 
-                {/* Category & Tags */}
-                <div className="grid grid-cols-1 gap-4">
+                {/* Project & Category */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-surface-700 mb-2">
+                      Project
+                    </label>
+                    <select
+                      value={formData.projectId || 'default'}
+                      onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
+                      className="w-full border border-surface-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                    >
+                      {projects.map(project => (
+                        <option key={project.id} value={project.id}>
+                          {project.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
                   <div>
                     <label className="block text-sm font-medium text-surface-700 mb-2">
                       Category
@@ -1184,8 +1232,12 @@ value={formData.status}
                       ))}
                     </select>
                   </div>
+                </div>
 
-                  <div>
+                {/* Tags */}
+                <div className="grid grid-cols-1 gap-4">
+
+<div>
                     <label className="block text-sm font-medium text-surface-700 mb-2">
                       Tags
                     </label>
@@ -1864,25 +1916,35 @@ value={formData.status}
         )}
       </AnimatePresence>
 
-      {/* Debug Info - Workflow Status */}
-      {process.env.NODE_ENV === 'development' && (
+{/* Debug Info - Workflow Status */}
+      {typeof process !== 'undefined' && process.env?.NODE_ENV === 'development' && (
         <div className="fixed bottom-4 right-4 bg-black/80 text-white p-2 rounded text-xs">
           Active: {workflows.find(w => w.id === activeWorkflowId)?.name || 'None'} | 
           Tasks: {tasks.length} | 
           Refresh: {refreshTrigger}
         </div>
       )}
-
-      {/* Add Workflow Button */}
-      <motion.button
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={() => setIsWorkflowModalOpen(true)}
-        className="fixed bottom-4 left-4 bg-primary text-white p-3 rounded-full shadow-lg hover:shadow-xl transition-shadow"
-        title="Manage Workflows"
->
-        <ApperIcon name="Settings" className="w-5 h-5" />
-      </motion.button>
+{/* Management Buttons */}
+      <div className="fixed bottom-4 left-4 flex flex-col space-y-3">
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setIsProjectModalOpen(true)}
+          className="bg-secondary text-white p-3 rounded-full shadow-lg hover:shadow-xl transition-shadow"
+          title="Manage Projects"
+        >
+          <ApperIcon name="FolderOpen" className="w-5 h-5" />
+        </motion.button>
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setIsWorkflowModalOpen(true)}
+          className="bg-primary text-white p-3 rounded-full shadow-lg hover:shadow-xl transition-shadow"
+          title="Manage Workflows"
+        >
+          <ApperIcon name="Settings" className="w-5 h-5" />
+        </motion.button>
+      </div>
     </div>
   )
 }
