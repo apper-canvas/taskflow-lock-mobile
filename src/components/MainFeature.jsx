@@ -489,12 +489,14 @@ const openEditModal = (task) => {
                                     e.target.value = ''
                                   }
                                 }}
-                              />
+/>
                               <button
                                 onClick={(e) => {
                                   const input = e.target.parentElement.querySelector('input')
-                                  handleAddSubtask(task.id, input.value)
-                                  input.value = ''
+                                  if (input && input.value) {
+                                    handleAddSubtask(task.id, input.value)
+                                    input.value = ''
+                                  }
                                 }}
                                 className="p-1 rounded-md hover:bg-surface-100 transition-colors"
                               >
@@ -727,12 +729,14 @@ const openEditModal = (task) => {
                         }
                       }}
                     />
-                    <button
+<button
                       type="button"
                       onClick={(e) => {
                         const input = e.target.parentElement.querySelector('input')
-                        addSubtaskToForm(input.value)
-                        input.value = ''
+                        if (input && input.value) {
+                          addSubtaskToForm(input.value)
+                          input.value = ''
+                        }
                       }}
                       className="px-3 py-2 bg-surface-100 hover:bg-surface-200 rounded-lg transition-colors"
                     >
