@@ -1189,6 +1189,363 @@ filteredTasks.map((task, index) => {
           </motion.div>
 )}
       </AnimatePresence>
+
+      {/* Workflow Management Modal */}
+      <AnimatePresence>
+        {isWorkflowModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setIsWorkflowModalOpen(false)
+                setEditingWorkflow(null)
+                resetWorkflowForm()
+              }
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="bg-white rounded-2xl p-6 sm:p-8 w-full max-w-4xl shadow-2xl max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl sm:text-2xl font-bold text-surface-900">
+                  Workflow Management
+                </h2>
+                <button
+                  onClick={() => {
+                    setIsWorkflowModalOpen(false)
+                    setEditingWorkflow(null)
+                    resetWorkflowForm()
+                  }}
+                  className="p-2 rounded-lg hover:bg-surface-100 transition-colors"
+                >
+                  <ApperIcon name="X" className="w-5 h-5 text-surface-500" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Workflow Creation/Editing */}
+                <div>
+                  <h3 className="text-lg font-semibold text-surface-900 mb-4">
+                    {editingWorkflow ? 'Edit Workflow' : 'Create New Workflow'}
+                  </h3>
+                  
+                  {/* Quick Templates */}
+                  {!editingWorkflow && (
+                    <div className="mb-6">
+                      <h4 className="text-sm font-medium text-surface-700 mb-3">Quick Start Templates</h4>
+                      <div className="grid grid-cols-1 gap-2">
+                        {Object.values(defaultWorkflows).map(template => (
+                          <button
+                            key={template.id}
+                            onClick={() => {
+                              setWorkflowFormData({
+                                name: template.name + ' (Copy)',
+                                description: template.description,
+                                stages: [...template.stages],
+                                transitions: { ...template.transitions }
+                              })
+                            }}
+                            className="text-left p-3 border border-surface-200 rounded-lg hover:bg-surface-50 transition-colors"
+                          >
+                            <div className="font-medium text-surface-900">{template.name}</div>
+                            <div className="text-sm text-surface-600">{template.description}</div>
+                            <div className="flex items-center space-x-1 mt-2">
+                              {template.stages.slice(0, 4).map(stage => (
+                                <div
+                                  key={stage.id}
+                                  className="w-3 h-3 rounded-full"
+                                  style={{ backgroundColor: stage.color }}
+                                ></div>
+                              ))}
+                              {template.stages.length > 4 && (
+                                <span className="text-xs text-surface-500">+{template.stages.length - 4}</span>
+                              )}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <form onSubmit={editingWorkflow ? handleUpdateWorkflow : handleCreateWorkflow} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-surface-700 mb-2">
+                        Workflow Name *
+                      </label>
+                      <input
+                        type="text"
+                        value={workflowFormData.name}
+                        onChange={(e) => setWorkflowFormData({ ...workflowFormData, name: e.target.value })}
+                        className="w-full border border-surface-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                        placeholder="Enter workflow name..."
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-surface-700 mb-2">
+                        Description
+                      </label>
+                      <textarea
+                        value={workflowFormData.description}
+                        onChange={(e) => setWorkflowFormData({ ...workflowFormData, description: e.target.value })}
+                        className="w-full border border-surface-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-transparent outline-none resize-none"
+                        rows="3"
+                        placeholder="Enter workflow description..."
+                      />
+                    </div>
+
+                    {/* Stages Management */}
+                    <div>
+                      <label className="block text-sm font-medium text-surface-700 mb-2">
+                        Workflow Stages
+                      </label>
+                      <div className="space-y-2 mb-3">
+                        {workflowFormData.stages.map((stage, index) => (
+                          <div key={stage.id} className="flex items-center space-x-3 p-3 bg-surface-50 rounded-lg">
+                            <div className="flex items-center space-x-2 flex-1">
+                              <input
+                                type="color"
+                                value={stage.color}
+                                onChange={(e) => {
+                                  const updatedStages = [...workflowFormData.stages]
+                                  updatedStages[index] = { ...stage, color: e.target.value }
+                                  setWorkflowFormData({ ...workflowFormData, stages: updatedStages })
+                                }}
+                                className="w-8 h-8 border border-surface-300 rounded cursor-pointer"
+                              />
+                              <input
+                                type="text"
+                                value={stage.name}
+                                onChange={(e) => {
+                                  const updatedStages = [...workflowFormData.stages]
+                                  updatedStages[index] = { ...stage, name: e.target.value }
+                                  setWorkflowFormData({ ...workflowFormData, stages: updatedStages })
+                                }}
+                                className="flex-1 border border-surface-300 rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary focus:border-transparent outline-none"
+                                placeholder="Stage name"
+                              />
+                              <select
+                                value={stage.icon}
+                                onChange={(e) => {
+                                  const updatedStages = [...workflowFormData.stages]
+                                  updatedStages[index] = { ...stage, icon: e.target.value }
+                                  setWorkflowFormData({ ...workflowFormData, stages: updatedStages })
+                                }}
+                                className="border border-surface-300 rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary focus:border-transparent outline-none"
+                              >
+                                <option value="Circle">Circle</option>
+                                <option value="Clock">Clock</option>
+                                <option value="CheckCircle2">Check</option>
+                                <option value="FileText">File</option>
+                                <option value="Code">Code</option>
+                                <option value="TestTube">Test</option>
+                                <option value="Eye">Eye</option>
+                                <option value="Rocket">Rocket</option>
+                                <option value="Settings">Settings</option>
+                              </select>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeStageFromWorkflow(stage.id)}
+                              className="p-1 rounded hover:bg-surface-200 transition-colors"
+                            >
+                              <ApperIcon name="X" className="w-4 h-4 text-surface-400 hover:text-red-500" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex space-x-2">
+                        <input
+                          type="text"
+                          placeholder="Add a stage..."
+                          className="flex-1 border border-surface-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              addStageToWorkflow(e.target.value)
+                              e.target.value = ''
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            const input = e.target.parentElement.querySelector('input')
+                            if (input && input.value) {
+                              addStageToWorkflow(input.value)
+                              input.value = ''
+                            }
+                          }}
+                          className="px-3 py-2 bg-surface-100 hover:bg-surface-200 rounded-lg transition-colors"
+                        >
+                          <ApperIcon name="Plus" className="w-4 h-4 text-surface-600" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Stage Transitions */}
+                    {workflowFormData.stages.length > 1 && (
+                      <div>
+                        <label className="block text-sm font-medium text-surface-700 mb-2">
+                          Stage Transitions
+                        </label>
+                        <div className="space-y-3">
+                          {workflowFormData.stages.map(stage => (
+                            <div key={stage.id} className="p-3 border border-surface-200 rounded-lg">
+                              <div className="flex items-center space-x-2 mb-2">
+                                <div 
+                                  className="w-3 h-3 rounded-full"
+                                  style={{ backgroundColor: stage.color }}
+                                ></div>
+                                <span className="font-medium text-sm text-surface-900">{stage.name}</span>
+                                <span className="text-xs text-surface-500">can transition to:</span>
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {workflowFormData.stages.filter(s => s.id !== stage.id).map(targetStage => (
+                                  <label key={targetStage.id} className="flex items-center space-x-1">
+                                    <input
+                                      type="checkbox"
+                                      checked={(workflowFormData.transitions[stage.id] || []).includes(targetStage.id)}
+                                      onChange={(e) => {
+                                        const currentTransitions = workflowFormData.transitions[stage.id] || []
+                                        const newTransitions = e.target.checked
+                                          ? [...currentTransitions, targetStage.id]
+                                          : currentTransitions.filter(id => id !== targetStage.id)
+                                        updateStageTransitions(stage.id, newTransitions)
+                                      }}
+                                      className="rounded border-surface-300 text-primary focus:ring-primary"
+                                    />
+                                    <span className="text-xs text-surface-700">{targetStage.name}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex space-x-3">
+                      {editingWorkflow && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingWorkflow(null)
+                            resetWorkflowForm()
+                          }}
+                          className="flex-1 btn-secondary"
+                        >
+                          Cancel Edit
+                        </button>
+                      )}
+                      <button
+                        type="submit"
+                        className="flex-1 btn-primary"
+                      >
+                        {editingWorkflow ? 'Update Workflow' : 'Create Workflow'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                {/* Existing Workflows */}
+                <div>
+                  <h3 className="text-lg font-semibold text-surface-900 mb-4">Existing Workflows</h3>
+                  
+                  {/* Active Workflow Selection */}
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium text-surface-700 mb-2">
+                      Active Workflow
+                    </label>
+                    <select
+                      value={activeWorkflowId}
+                      onChange={(e) => setActiveWorkflowId(e.target.value)}
+                      className="w-full border border-surface-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                    >
+                      {workflows.map(workflow => (
+                        <option key={workflow.id} value={workflow.id}>
+                          {workflow.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-3">
+                    {workflows.map(workflow => (
+                      <div key={workflow.id} className={`p-4 border rounded-lg ${workflow.id === activeWorkflowId ? 'border-primary bg-primary/5' : 'border-surface-200 bg-surface-50'}`}>
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <div className="flex items-center space-x-2">
+                              <h4 className="font-medium text-surface-900">{workflow.name}</h4>
+                              {workflow.id === activeWorkflowId && (
+                                <span className="text-xs bg-primary text-white px-2 py-1 rounded-full">Active</span>
+                              )}
+                            </div>
+                            {workflow.description && (
+                              <p className="text-sm text-surface-600 mt-1">{workflow.description}</p>
+                            )}
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <button
+                              onClick={() => {
+                                setEditingWorkflow(workflow)
+                                setWorkflowFormData({
+                                  name: workflow.name,
+                                  description: workflow.description,
+                                  stages: [...workflow.stages],
+                                  transitions: { ...workflow.transitions }
+                                })
+                              }}
+                              className="p-2 rounded-lg hover:bg-surface-200 transition-colors"
+                            >
+                              <ApperIcon name="Edit2" className="w-4 h-4 text-surface-500" />
+                            </button>
+                            {!Object.values(defaultWorkflows).find(dw => dw.id === workflow.id) && (
+                              <button
+                                onClick={() => handleDeleteWorkflow(workflow.id)}
+                                className="p-2 rounded-lg hover:bg-red-50 transition-colors"
+                              >
+                                <ApperIcon name="Trash2" className="w-4 h-4 text-red-500" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        
+                        {/* Workflow Stages Preview */}
+                        <div className="flex items-center space-x-2 mb-2">
+                          {workflow.stages.map((stage, index) => (
+                            <div key={stage.id} className="flex items-center space-x-1">
+                              <div
+                                className="w-3 h-3 rounded-full"
+                                style={{ backgroundColor: stage.color }}
+                              ></div>
+                              <span className="text-xs text-surface-700">{stage.name}</span>
+                              {index < workflow.stages.length - 1 && (
+                                <ApperIcon name="ChevronRight" className="w-3 h-3 text-surface-400" />
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        
+                        <div className="text-xs text-surface-500">
+                          {workflow.stages.length} stages • {Object.keys(workflow.transitions || {}).length} transition rules
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
