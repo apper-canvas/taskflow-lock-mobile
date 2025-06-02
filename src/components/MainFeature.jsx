@@ -64,7 +64,66 @@ const [formData, setFormData] = useState({
     subtasks: []
   })
 
-// Load tasks and projects from localStorage on component mount
+// Default workflow templates
+  const defaultWorkflows = {
+    basic: {
+      id: 'default',
+      name: 'Basic Workflow',
+      description: 'Simple three-stage workflow',
+      stages: [
+        { id: 'todo', name: 'To Do', color: '#6b7280', icon: 'Circle' },
+        { id: 'in-progress', name: 'In Progress', color: '#f59e0b', icon: 'Clock' },
+        { id: 'completed', name: 'Completed', color: '#10b981', icon: 'CheckCircle2' }
+      ],
+      transitions: {
+        'todo': ['in-progress'],
+        'in-progress': ['completed', 'todo'],
+        'completed': ['todo']
+      }
+    },
+    kanban: {
+      id: 'kanban',
+      name: 'Kanban Board',
+      description: 'Classic Kanban workflow with backlog and review',
+      stages: [
+        { id: 'backlog', name: 'Backlog', color: '#6b7280', icon: 'FileText' },
+        { id: 'todo', name: 'To Do', color: '#3b82f6', icon: 'Circle' },
+        { id: 'in-progress', name: 'In Progress', color: '#f59e0b', icon: 'Clock' },
+        { id: 'review', name: 'Review', color: '#8b5cf6', icon: 'Eye' },
+        { id: 'completed', name: 'Done', color: '#10b981', icon: 'CheckCircle2' }
+      ],
+      transitions: {
+        'backlog': ['todo'],
+        'todo': ['in-progress', 'backlog'],
+        'in-progress': ['review', 'todo'],
+        'review': ['completed', 'in-progress'],
+        'completed': ['todo']
+      }
+    },
+    development: {
+      id: 'development',
+      name: 'Software Development',
+      description: 'Complete software development lifecycle',
+      stages: [
+        { id: 'planning', name: 'Planning', color: '#6b7280', icon: 'FileText' },
+        { id: 'development', name: 'Development', color: '#3b82f6', icon: 'Code' },
+        { id: 'testing', name: 'Testing', color: '#f59e0b', icon: 'TestTube' },
+        { id: 'review', name: 'Code Review', color: '#8b5cf6', icon: 'Eye' },
+        { id: 'deployment', name: 'Deployment', color: '#10b981', icon: 'Rocket' },
+        { id: 'completed', name: 'Completed', color: '#059669', icon: 'CheckCircle2' }
+      ],
+      transitions: {
+        'planning': ['development'],
+        'development': ['testing', 'planning'],
+        'testing': ['review', 'development'],
+        'review': ['deployment', 'development'],
+        'deployment': ['completed', 'testing'],
+        'completed': ['planning']
+      }
+    }
+  }
+
+  // Load tasks, projects, and workflows from localStorage on component mount
   useEffect(() => {
     const savedTasks = localStorage.getItem('taskflow-tasks')
     if (savedTasks) {
@@ -84,7 +143,34 @@ const [formData, setFormData] = useState({
         createdAt: new Date().toISOString()
       }
       setProjects([defaultProject])
+      localStorage.setItem('taskflow-projects', JSON.stringify([defaultProject]))
+    }
 
+    const savedWorkflows = localStorage.getItem('taskflow-workflows')
+    if (savedWorkflows) {
+      setWorkflows(JSON.parse(savedWorkflows))
+    } else {
+      // Initialize with default workflows
+      const initialWorkflows = Object.values(defaultWorkflows)
+      setWorkflows(initialWorkflows)
+      localStorage.setItem('taskflow-workflows', JSON.stringify(initialWorkflows))
+    }
+  }, [])
+
+  // Save tasks to localStorage whenever tasks change
+  useEffect(() => {
+    localStorage.setItem('taskflow-tasks', JSON.stringify(tasks))
+  }, [tasks])
+
+  // Save projects to localStorage whenever projects change
+  useEffect(() => {
+    localStorage.setItem('taskflow-projects', JSON.stringify(projects))
+  }, [projects])
+
+  // Save workflows to localStorage whenever workflows change
+  useEffect(() => {
+    localStorage.setItem('taskflow-workflows', JSON.stringify(workflows))
+  }, [workflows])
 const resetForm = () => {
     setFormData({
       title: '',
