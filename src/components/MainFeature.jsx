@@ -704,13 +704,12 @@ filteredTasks.map((task, index) => {
                                 ))}
                               </div>
                             )}
-
-                            {/* Status */}
+{/* Status */}
                             <span className={`inline-flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-medium ${statusConfig.color} bg-surface-100`}>
-<span className={`inline-flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-medium ${statusConfig.color} bg-surface-100`}>
                               <span>{statusConfig.label}</span>
-                            </span>
+</span>
                           </div>
+                        </div>
 
                         {/* Actions */}
                         <div className="flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -739,7 +738,6 @@ filteredTasks.map((task, index) => {
           )}
         </AnimatePresence>
       </motion.div>
-
       {/* Create/Edit Modal */}
       <AnimatePresence>
         {(isCreateModalOpen || editingTask) && (
