@@ -24,12 +24,13 @@ const MainFeature = () => {
   const [filter, setFilter] = useState('all')
   const [sortBy, setSortBy] = useState('dueDate')
   
-  const [formData, setFormData] = useState({
+const [formData, setFormData] = useState({
     title: '',
     description: '',
     priority: 'medium',
     status: 'todo',
-    dueDate: ''
+    dueDate: '',
+    subtasks: []
   })
 
   // Load tasks from localStorage on component mount
@@ -45,13 +46,14 @@ const MainFeature = () => {
     localStorage.setItem('taskflow-tasks', JSON.stringify(tasks))
   }, [tasks])
 
-  const resetForm = () => {
+const resetForm = () => {
     setFormData({
       title: '',
       description: '',
       priority: 'medium',
       status: 'todo',
-      dueDate: ''
+      dueDate: '',
+      subtasks: []
     })
   }
 
@@ -92,7 +94,7 @@ const MainFeature = () => {
     toast.success('Task updated successfully!')
   }
 
-  const handleDeleteTask = (taskId) => {
+const handleDeleteTask = (taskId) => {
     setTasks(prev => prev.filter(task => task.id !== taskId))
     toast.success('Task deleted successfully!')
   }
@@ -109,14 +111,100 @@ const MainFeature = () => {
     }
   }
 
-  const openEditModal = (task) => {
+  // Subtask management functions
+  const handleAddSubtask = (taskId, subtaskTitle) => {
+    if (!subtaskTitle.trim()) {
+      toast.error('Subtask title is required')
+      return
+    }
+
+    const newSubtask = {
+      id: Date.now().toString(),
+      title: subtaskTitle.trim(),
+      completed: false,
+      createdAt: new Date().toISOString()
+    }
+
+    setTasks(prev => prev.map(task => 
+      task.id === taskId 
+        ? { 
+            ...task, 
+            subtasks: [...(task.subtasks || []), newSubtask],
+            updatedAt: new Date().toISOString()
+          }
+        : task
+    ))
+    
+    toast.success('Subtask added successfully!')
+  }
+
+  const handleDeleteSubtask = (taskId, subtaskId) => {
+    setTasks(prev => prev.map(task => 
+      task.id === taskId 
+        ? { 
+            ...task, 
+            subtasks: (task.subtasks || []).filter(subtask => subtask.id !== subtaskId),
+            updatedAt: new Date().toISOString()
+          }
+        : task
+    ))
+    
+    toast.success('Subtask deleted successfully!')
+  }
+
+  const handleToggleSubtask = (taskId, subtaskId) => {
+    setTasks(prev => prev.map(task => 
+      task.id === taskId 
+        ? { 
+            ...task, 
+            subtasks: (task.subtasks || []).map(subtask =>
+              subtask.id === subtaskId 
+                ? { ...subtask, completed: !subtask.completed }
+                : subtask
+            ),
+            updatedAt: new Date().toISOString()
+          }
+        : task
+    ))
+  }
+
+  const getSubtaskProgress = (subtasks) => {
+    if (!subtasks || subtasks.length === 0) return 0
+    const completed = subtasks.filter(subtask => subtask.completed).length
+    return Math.round((completed / subtasks.length) * 100)
+  }
+
+  const addSubtaskToForm = (title) => {
+    if (!title.trim()) return
+    
+    const newSubtask = {
+      id: Date.now().toString(),
+      title: title.trim(),
+      completed: false,
+      createdAt: new Date().toISOString()
+    }
+    
+    setFormData(prev => ({
+      ...prev,
+      subtasks: [...(prev.subtasks || []), newSubtask]
+    }))
+  }
+
+  const removeSubtaskFromForm = (subtaskId) => {
+    setFormData(prev => ({
+      ...prev,
+      subtasks: (prev.subtasks || []).filter(subtask => subtask.id !== subtaskId)
+    }))
+  }
+const openEditModal = (task) => {
     setEditingTask(task)
     setFormData({
       title: task.title,
       description: task.description,
       priority: task.priority,
       status: task.status,
-      dueDate: task.dueDate
+      dueDate: task.dueDate,
+      subtasks: task.subtasks || []
     })
   }
 
@@ -322,7 +410,7 @@ const MainFeature = () => {
                       />
                     </motion.button>
 
-                    {/* Task Content */}
+{/* Task Content */}
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between space-y-2 sm:space-y-0">
                         <div className="flex-1 min-w-0">
@@ -334,6 +422,86 @@ const MainFeature = () => {
                               {task.description}
                             </p>
                           )}
+                          
+                          {/* Subtasks Progress */}
+                          {task.subtasks && task.subtasks.length > 0 && (
+                            <div className="mt-2 mb-3">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-xs text-surface-600">
+                                  Subtasks ({task.subtasks.filter(s => s.completed).length}/{task.subtasks.length})
+                                </span>
+                                <span className="text-xs text-surface-600">
+                                  {getSubtaskProgress(task.subtasks)}%
+                                </span>
+                              </div>
+                              <div className="w-full bg-surface-200 rounded-full h-2">
+                                <div 
+                                  className="bg-primary rounded-full h-2 transition-all duration-300"
+                                  style={{ width: `${getSubtaskProgress(task.subtasks)}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Subtasks List */}
+                          {task.subtasks && task.subtasks.length > 0 && (
+                            <div className="mt-3 space-y-1">
+                              {task.subtasks.slice(0, 3).map((subtask) => (
+                                <div key={subtask.id} className="flex items-center space-x-2 text-xs">
+                                  <button
+                                    onClick={() => handleToggleSubtask(task.id, subtask.id)}
+                                    className="flex-shrink-0"
+                                  >
+                                    <ApperIcon 
+                                      name={subtask.completed ? "CheckCircle2" : "Circle"} 
+                                      className={`w-3 h-3 ${subtask.completed ? 'text-green-600' : 'text-surface-400'}`} 
+                                    />
+                                  </button>
+                                  <span className={`flex-1 ${subtask.completed ? 'line-through text-surface-400' : 'text-surface-600'}`}>
+                                    {subtask.title}
+                                  </span>
+                                  <button
+                                    onClick={() => handleDeleteSubtask(task.id, subtask.id)}
+                                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                                  >
+                                    <ApperIcon name="X" className="w-3 h-3 text-surface-400 hover:text-red-500" />
+                                  </button>
+                                </div>
+                              ))}
+                              {task.subtasks.length > 3 && (
+                                <div className="text-xs text-surface-500 pl-5">
+                                  +{task.subtasks.length - 3} more subtasks
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Add Subtask Input */}
+                          <div className="mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="flex items-center space-x-2">
+                              <input
+                                type="text"
+                                placeholder="Add subtask..."
+                                className="flex-1 text-xs border border-surface-300 rounded-md px-2 py-1 focus:ring-1 focus:ring-primary focus:border-transparent outline-none"
+                                onKeyPress={(e) => {
+                                  if (e.key === 'Enter') {
+                                    handleAddSubtask(task.id, e.target.value)
+                                    e.target.value = ''
+                                  }
+                                }}
+                              />
+                              <button
+                                onClick={(e) => {
+                                  const input = e.target.parentElement.querySelector('input')
+                                  handleAddSubtask(task.id, input.value)
+                                  input.value = ''
+                                }}
+                                className="p-1 rounded-md hover:bg-surface-100 transition-colors"
+                              >
+                                <ApperIcon name="Plus" className="w-3 h-3 text-surface-500" />
+                              </button>
+                            </div>
+                          </div>
                           
                           <div className="flex flex-wrap items-center gap-2 mt-3">
                             {/* Priority */}
@@ -506,6 +674,71 @@ const MainFeature = () => {
                     onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
                     className="w-full border border-surface-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
                   />
+</div>
+
+                {/* Subtasks Section */}
+                <div>
+                  <label className="block text-sm font-medium text-surface-700 mb-2">
+                    Subtasks
+                  </label>
+                  <div className="space-y-2 mb-3">
+                    {(formData.subtasks || []).map((subtask) => (
+                      <div key={subtask.id} className="flex items-center space-x-2 p-2 bg-surface-50 rounded-lg">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormData(prev => ({
+                              ...prev,
+                              subtasks: prev.subtasks.map(s => 
+                                s.id === subtask.id ? { ...s, completed: !s.completed } : s
+                              )
+                            }))
+                          }}
+                          className="flex-shrink-0"
+                        >
+                          <ApperIcon 
+                            name={subtask.completed ? "CheckCircle2" : "Circle"} 
+                            className={`w-4 h-4 ${subtask.completed ? 'text-green-600' : 'text-surface-400'}`} 
+                          />
+                        </button>
+                        <span className={`flex-1 text-sm ${subtask.completed ? 'line-through text-surface-400' : 'text-surface-700'}`}>
+                          {subtask.title}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removeSubtaskFromForm(subtask.id)}
+                          className="flex-shrink-0 p-1 rounded hover:bg-surface-200 transition-colors"
+                        >
+                          <ApperIcon name="X" className="w-3 h-3 text-surface-400 hover:text-red-500" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex space-x-2">
+                    <input
+                      type="text"
+                      placeholder="Add a subtask..."
+                      className="flex-1 border border-surface-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          addSubtaskToForm(e.target.value)
+                          e.target.value = ''
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        const input = e.target.parentElement.querySelector('input')
+                        addSubtaskToForm(input.value)
+                        input.value = ''
+                      }}
+                      className="px-3 py-2 bg-surface-100 hover:bg-surface-200 rounded-lg transition-colors"
+                    >
+                      <ApperIcon name="Plus" className="w-4 h-4 text-surface-600" />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Actions */}
