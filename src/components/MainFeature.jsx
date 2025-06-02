@@ -43,10 +43,11 @@ const [filter, setFilter] = useState('all')
     description: '',
     color: '#6366f1'
   })
-  const [isWorkflowModalOpen, setIsWorkflowModalOpen] = useState(false)
+const [isWorkflowModalOpen, setIsWorkflowModalOpen] = useState(false)
   const [workflows, setWorkflows] = useState([])
   const [editingWorkflow, setEditingWorkflow] = useState(null)
   const [activeWorkflowId, setActiveWorkflowId] = useState('default')
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [workflowFormData, setWorkflowFormData] = useState({
     name: '',
     description: '',
@@ -177,12 +178,19 @@ const savedWorkflows = localStorage.getItem('taskflow-workflows')
 // Save workflows to localStorage whenever workflows change
   useEffect(() => {
     localStorage.setItem('taskflow-workflows', JSON.stringify(workflows))
+    setRefreshTrigger(prev => prev + 1)
   }, [workflows])
 
   // Save active workflow to localStorage whenever it changes
   useEffect(() => {
     localStorage.setItem('taskflow-active-workflow', activeWorkflowId)
+    setRefreshTrigger(prev => prev + 1)
   }, [activeWorkflowId])
+
+  // Force refresh when refresh trigger changes
+  useEffect(() => {
+    // This ensures component re-renders when workflows change
+  }, [refreshTrigger])
 const resetForm = () => {
     const activeWorkflow = workflows.find(w => w.id === activeWorkflowId) || workflows[0]
     const firstStage = activeWorkflow?.stages[0]?.id || 'todo'
@@ -742,12 +750,16 @@ const getStatusConfig = (status, workflowId) => {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
           <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
             {/* Filter */}
-            <div className="flex items-center space-x-2">
+<div className="flex items-center space-x-2">
               <ApperIcon name="Filter" className="w-4 h-4 text-surface-500" />
               <select
                 value={filter}
-onChange={(e) => setFilter(e.target.value)}
+                onChange={(e) => {
+                  setFilter(e.target.value)
+                  setRefreshTrigger(prev => prev + 1)
+                }}
                 className="border border-surface-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                key={`filter-${activeWorkflowId}-${refreshTrigger}`}
               >
                 {getFilterOptions().map(option => (
                   <option key={option.value} value={option.value}>
@@ -832,14 +844,14 @@ onChange={(e) => setFilter(e.target.value)}
             </motion.div>
           ) : (
 filteredTasks.map((task, index) => {
-const priorityConfig = getPriorityConfig(task.priority)
+              const priorityConfig = getPriorityConfig(task.priority)
               const categoryConfig = getCategoryConfig(task.category)
               const statusConfig = getStatusConfig(task.stage || task.status, task.workflowId)
               const dateLabel = getDateLabel(task.dueDate)
               const isOverdue = task.dueDate && isPast(new Date(task.dueDate)) && task.status !== 'completed'
               return (
                 <motion.div
-                  key={task.id}
+                  key={`${task.id}-${activeWorkflowId}-${refreshTrigger}`}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, x: -100 }}
@@ -851,7 +863,7 @@ const priorityConfig = getPriorityConfig(task.priority)
                     <motion.button
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
-onClick={() => {
+                      onClick={() => {
                         const nextStage = getNextStage(task)
                         if (nextStage) {
                           handleStatusChange(task.id, nextStage)
@@ -872,7 +884,7 @@ onClick={() => {
                       />
                     </motion.button>
 
-{/* Task Content */}
+                    {/* Task Content */}
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between space-y-2 sm:space-y-0">
                         <div className="flex-1 min-w-0">
@@ -951,7 +963,7 @@ onClick={() => {
                                     e.target.value = ''
                                   }
                                 }}
-/>
+                              />
                               <button
                                 onClick={(e) => {
                                   const input = e.target.parentElement.querySelector('input')
@@ -982,7 +994,7 @@ onClick={() => {
                                 'text-surface-600 bg-surface-100'
                               }`}>
                                 <ApperIcon name="Calendar" className="w-3 h-3" />
-<span>{dateLabel}</span>
+                                <span>{dateLabel}</span>
                               </span>
                             )}
 
@@ -1002,10 +1014,10 @@ onClick={() => {
                                 ))}
                               </div>
                             )}
-{/* Status */}
+                            {/* Status */}
                             <span className={`inline-flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-medium ${statusConfig.color} bg-surface-100`}>
                               <span>{statusConfig.label}</span>
-</span>
+                            </span>
                           </div>
                         </div>
 
@@ -1767,6 +1779,9 @@ value={formData.status}
                       onChange={(e) => {
                         setActiveWorkflowId(e.target.value)
                         localStorage.setItem('taskflow-active-workflow', e.target.value)
+                        setRefreshTrigger(prev => prev + 1)
+                        // Reset filter to 'all' when switching workflows
+                        setFilter('all')
                         toast.success(`Switched to ${workflows.find(w => w.id === e.target.value)?.name || 'workflow'}`)
                       }}
                       className="w-full border border-surface-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
@@ -1844,10 +1859,30 @@ value={formData.status}
                   </div>
                 </div>
               </div>
-            </motion.div>
+</motion.div>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Debug Info - Workflow Status */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="fixed bottom-4 right-4 bg-black/80 text-white p-2 rounded text-xs">
+          Active: {workflows.find(w => w.id === activeWorkflowId)?.name || 'None'} | 
+          Tasks: {tasks.length} | 
+          Refresh: {refreshTrigger}
+        </div>
+      )}
+
+      {/* Add Workflow Button */}
+      <motion.button
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={() => setIsWorkflowModalOpen(true)}
+        className="fixed bottom-4 left-4 bg-primary text-white p-3 rounded-full shadow-lg hover:shadow-xl transition-shadow"
+        title="Manage Workflows"
+>
+        <ApperIcon name="Settings" className="w-5 h-5" />
+      </motion.button>
     </div>
   )
 }
