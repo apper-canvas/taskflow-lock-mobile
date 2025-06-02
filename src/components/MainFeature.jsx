@@ -1,0 +1,540 @@
+import { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { toast } from 'react-toastify'
+import { format, isToday, isTomorrow, isPast } from 'date-fns'
+import ApperIcon from './ApperIcon'
+
+const priorities = [
+  { value: 'low', label: 'Low', color: 'bg-blue-500', textColor: 'text-blue-600' },
+  { value: 'medium', label: 'Medium', color: 'bg-yellow-500', textColor: 'text-yellow-600' },
+  { value: 'high', label: 'High', color: 'bg-orange-500', textColor: 'text-orange-600' },
+  { value: 'urgent', label: 'Urgent', color: 'bg-red-500', textColor: 'text-red-600' }
+]
+
+const statuses = [
+  { value: 'todo', label: 'To Do', icon: 'Circle', color: 'text-surface-500' },
+  { value: 'in-progress', label: 'In Progress', icon: 'Clock', color: 'text-yellow-600' },
+  { value: 'completed', label: 'Completed', icon: 'CheckCircle2', color: 'text-green-600' }
+]
+
+const MainFeature = () => {
+  const [tasks, setTasks] = useState([])
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [editingTask, setEditingTask] = useState(null)
+  const [filter, setFilter] = useState('all')
+  const [sortBy, setSortBy] = useState('dueDate')
+  
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    priority: 'medium',
+    status: 'todo',
+    dueDate: ''
+  })
+
+  // Load tasks from localStorage on component mount
+  useEffect(() => {
+    const savedTasks = localStorage.getItem('taskflow-tasks')
+    if (savedTasks) {
+      setTasks(JSON.parse(savedTasks))
+    }
+  }, [])
+
+  // Save tasks to localStorage whenever tasks change
+  useEffect(() => {
+    localStorage.setItem('taskflow-tasks', JSON.stringify(tasks))
+  }, [tasks])
+
+  const resetForm = () => {
+    setFormData({
+      title: '',
+      description: '',
+      priority: 'medium',
+      status: 'todo',
+      dueDate: ''
+    })
+  }
+
+  const handleCreateTask = (e) => {
+    e.preventDefault()
+    if (!formData.title.trim()) {
+      toast.error('Task title is required')
+      return
+    }
+
+    const newTask = {
+      id: Date.now().toString(),
+      ...formData,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }
+
+    setTasks(prev => [newTask, ...prev])
+    setIsCreateModalOpen(false)
+    resetForm()
+    toast.success('Task created successfully!')
+  }
+
+  const handleUpdateTask = (e) => {
+    e.preventDefault()
+    if (!formData.title.trim()) {
+      toast.error('Task title is required')
+      return
+    }
+
+    setTasks(prev => prev.map(task => 
+      task.id === editingTask.id 
+        ? { ...task, ...formData, updatedAt: new Date().toISOString() }
+        : task
+    ))
+    setEditingTask(null)
+    resetForm()
+    toast.success('Task updated successfully!')
+  }
+
+  const handleDeleteTask = (taskId) => {
+    setTasks(prev => prev.filter(task => task.id !== taskId))
+    toast.success('Task deleted successfully!')
+  }
+
+  const handleStatusChange = (taskId, newStatus) => {
+    setTasks(prev => prev.map(task => 
+      task.id === taskId 
+        ? { ...task, status: newStatus, updatedAt: new Date().toISOString() }
+        : task
+    ))
+    
+    if (newStatus === 'completed') {
+      toast.success('Task completed! 🎉')
+    }
+  }
+
+  const openEditModal = (task) => {
+    setEditingTask(task)
+    setFormData({
+      title: task.title,
+      description: task.description,
+      priority: task.priority,
+      status: task.status,
+      dueDate: task.dueDate
+    })
+  }
+
+  const getFilteredTasks = () => {
+    let filtered = tasks
+
+    if (filter !== 'all') {
+      filtered = filtered.filter(task => task.status === filter)
+    }
+
+    // Sort tasks
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case 'dueDate':
+          if (!a.dueDate && !b.dueDate) return 0
+          if (!a.dueDate) return 1
+          if (!b.dueDate) return -1
+          return new Date(a.dueDate) - new Date(b.dueDate)
+        case 'priority':
+          const priorityOrder = { urgent: 4, high: 3, medium: 2, low: 1 }
+          return priorityOrder[b.priority] - priorityOrder[a.priority]
+        case 'created':
+          return new Date(b.createdAt) - new Date(a.createdAt)
+        default:
+          return 0
+      }
+    })
+
+    return filtered
+  }
+
+  const getDateLabel = (dateString) => {
+    if (!dateString) return null
+    const date = new Date(dateString)
+    if (isToday(date)) return 'Today'
+    if (isTomorrow(date)) return 'Tomorrow'
+    if (isPast(date)) return 'Overdue'
+    return format(date, 'MMM d')
+  }
+
+  const getPriorityConfig = (priority) => {
+    return priorities.find(p => p.value === priority)
+  }
+
+  const getStatusConfig = (status) => {
+    return statuses.find(s => s.value === status)
+  }
+
+  const filteredTasks = getFilteredTasks()
+  const taskStats = {
+    total: tasks.length,
+    completed: tasks.filter(t => t.status === 'completed').length,
+    inProgress: tasks.filter(t => t.status === 'in-progress').length,
+    overdue: tasks.filter(t => t.dueDate && isPast(new Date(t.dueDate)) && t.status !== 'completed').length
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Stats Cards */}
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6 }}
+        className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6"
+      >
+        {[
+          { label: 'Total Tasks', value: taskStats.total, icon: 'FileText', color: 'primary' },
+          { label: 'Completed', value: taskStats.completed, icon: 'CheckCircle', color: 'secondary' },
+          { label: 'In Progress', value: taskStats.inProgress, icon: 'Clock', color: 'accent' },
+          { label: 'Overdue', value: taskStats.overdue, icon: 'AlertTriangle', color: 'red-500' }
+        ].map((stat, index) => (
+          <motion.div
+            key={stat.label}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: index * 0.1 }}
+            className="bg-white rounded-xl p-4 sm:p-6 shadow-soft border border-surface-200 hover:shadow-card transition-shadow"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-surface-600 font-medium">{stat.label}</p>
+                <p className="text-2xl sm:text-3xl font-bold text-surface-900 mt-1">{stat.value}</p>
+              </div>
+              <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-${stat.color}/10 flex items-center justify-center`}>
+                <ApperIcon name={stat.icon} className={`w-5 h-5 sm:w-6 sm:h-6 text-${stat.color}`} />
+              </div>
+            </div>
+          </motion.div>
+        ))}
+      </motion.div>
+
+      {/* Controls */}
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, delay: 0.4 }}
+        className="bg-white rounded-xl p-4 sm:p-6 shadow-soft border border-surface-200"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
+          <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
+            {/* Filter */}
+            <div className="flex items-center space-x-2">
+              <ApperIcon name="Filter" className="w-4 h-4 text-surface-500" />
+              <select
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                className="border border-surface-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+              >
+                <option value="all">All Tasks</option>
+                <option value="todo">To Do</option>
+                <option value="in-progress">In Progress</option>
+                <option value="completed">Completed</option>
+              </select>
+            </div>
+
+            {/* Sort */}
+            <div className="flex items-center space-x-2">
+              <ApperIcon name="ArrowUpDown" className="w-4 h-4 text-surface-500" />
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="border border-surface-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+              >
+                <option value="dueDate">Due Date</option>
+                <option value="priority">Priority</option>
+                <option value="created">Created Date</option>
+              </select>
+            </div>
+          </div>
+
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setIsCreateModalOpen(true)}
+            className="btn-primary flex items-center space-x-2 justify-center sm:justify-start"
+          >
+            <ApperIcon name="Plus" className="w-4 h-4" />
+            <span>Create Task</span>
+          </motion.button>
+        </div>
+      </motion.div>
+
+      {/* Task List */}
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.6, delay: 0.6 }}
+        className="space-y-3 sm:space-y-4"
+      >
+        <AnimatePresence>
+          {filteredTasks.length === 0 ? (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="bg-white rounded-xl p-8 sm:p-12 text-center shadow-soft border border-surface-200"
+            >
+              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-surface-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <ApperIcon name="CheckSquare" className="w-8 h-8 sm:w-10 sm:h-10 text-surface-400" />
+              </div>
+              <h3 className="text-lg sm:text-xl font-semibold text-surface-900 mb-2">No tasks found</h3>
+              <p className="text-surface-600 mb-6">
+                {filter === 'all' ? 'Create your first task to get started!' : `No ${filter.replace('-', ' ')} tasks yet.`}
+              </p>
+              <button
+                onClick={() => setIsCreateModalOpen(true)}
+                className="btn-primary"
+              >
+                Create Your First Task
+              </button>
+            </motion.div>
+          ) : (
+            filteredTasks.map((task, index) => {
+              const priorityConfig = getPriorityConfig(task.priority)
+              const statusConfig = getStatusConfig(task.status)
+              const dateLabel = getDateLabel(task.dueDate)
+              const isOverdue = task.dueDate && isPast(new Date(task.dueDate)) && task.status !== 'completed'
+
+              return (
+                <motion.div
+                  key={task.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, x: -100 }}
+                  transition={{ duration: 0.3, delay: index * 0.05 }}
+                  className="task-card group"
+                >
+                  <div className="flex items-start space-x-3 sm:space-x-4">
+                    {/* Status Button */}
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => {
+                        const nextStatus = task.status === 'todo' ? 'in-progress' : 
+                                         task.status === 'in-progress' ? 'completed' : 'todo'
+                        handleStatusChange(task.id, nextStatus)
+                      }}
+                      className="flex-shrink-0 mt-1"
+                    >
+                      <ApperIcon 
+                        name={statusConfig.icon} 
+                        className={`w-5 h-5 sm:w-6 sm:h-6 ${statusConfig.color} hover:scale-110 transition-transform`} 
+                      />
+                    </motion.button>
+
+                    {/* Task Content */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between space-y-2 sm:space-y-0">
+                        <div className="flex-1 min-w-0">
+                          <h3 className={`font-semibold text-surface-900 ${task.status === 'completed' ? 'line-through opacity-75' : ''} text-sm sm:text-base`}>
+                            {task.title}
+                          </h3>
+                          {task.description && (
+                            <p className="text-surface-600 text-sm mt-1 line-clamp-2">
+                              {task.description}
+                            </p>
+                          )}
+                          
+                          <div className="flex flex-wrap items-center gap-2 mt-3">
+                            {/* Priority */}
+                            <span className={`inline-flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-medium ${priorityConfig.textColor} bg-${priorityConfig.value === 'low' ? 'blue' : priorityConfig.value === 'medium' ? 'yellow' : priorityConfig.value === 'high' ? 'orange' : 'red'}-100`}>
+                              <div className={`w-2 h-2 rounded-full ${priorityConfig.color}`}></div>
+                              <span>{priorityConfig.label}</span>
+                            </span>
+
+                            {/* Due Date */}
+                            {dateLabel && (
+                              <span className={`inline-flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-medium ${
+                                isOverdue ? 'text-red-600 bg-red-100' : 
+                                dateLabel === 'Today' ? 'text-orange-600 bg-orange-100' :
+                                'text-surface-600 bg-surface-100'
+                              }`}>
+                                <ApperIcon name="Calendar" className="w-3 h-3" />
+                                <span>{dateLabel}</span>
+                              </span>
+                            )}
+
+                            {/* Status */}
+                            <span className={`inline-flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-medium ${statusConfig.color} bg-surface-100`}>
+                              <span>{statusConfig.label}</span>
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => openEditModal(task)}
+                            className="p-2 rounded-lg hover:bg-surface-100 transition-colors"
+                          >
+                            <ApperIcon name="Edit2" className="w-4 h-4 text-surface-500" />
+                          </motion.button>
+                          <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => handleDeleteTask(task.id)}
+                            className="p-2 rounded-lg hover:bg-red-50 transition-colors"
+                          >
+                            <ApperIcon name="Trash2" className="w-4 h-4 text-red-500" />
+                          </motion.button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )
+            })
+          )}
+        </AnimatePresence>
+      </motion.div>
+
+      {/* Create/Edit Modal */}
+      <AnimatePresence>
+        {(isCreateModalOpen || editingTask) && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setIsCreateModalOpen(false)
+                setEditingTask(null)
+                resetForm()
+              }
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="bg-white rounded-2xl p-6 sm:p-8 w-full max-w-md shadow-2xl"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl sm:text-2xl font-bold text-surface-900">
+                  {editingTask ? 'Edit Task' : 'Create New Task'}
+                </h2>
+                <button
+                  onClick={() => {
+                    setIsCreateModalOpen(false)
+                    setEditingTask(null)
+                    resetForm()
+                  }}
+                  className="p-2 rounded-lg hover:bg-surface-100 transition-colors"
+                >
+                  <ApperIcon name="X" className="w-5 h-5 text-surface-500" />
+                </button>
+              </div>
+
+              <form onSubmit={editingTask ? handleUpdateTask : handleCreateTask} className="space-y-4">
+                {/* Title */}
+                <div>
+                  <label className="block text-sm font-medium text-surface-700 mb-2">
+                    Task Title *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    className="w-full border border-surface-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                    placeholder="Enter task title..."
+                    required
+                  />
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="block text-sm font-medium text-surface-700 mb-2">
+                    Description
+                  </label>
+                  <textarea
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    className="w-full border border-surface-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-transparent outline-none resize-none"
+                    rows="3"
+                    placeholder="Enter task description..."
+                  />
+                </div>
+
+                {/* Priority & Status */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-surface-700 mb-2">
+                      Priority
+                    </label>
+                    <select
+                      value={formData.priority}
+                      onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+                      className="w-full border border-surface-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                    >
+                      {priorities.map(priority => (
+                        <option key={priority.value} value={priority.value}>
+                          {priority.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-surface-700 mb-2">
+                      Status
+                    </label>
+                    <select
+                      value={formData.status}
+                      onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                      className="w-full border border-surface-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                    >
+                      {statuses.map(status => (
+                        <option key={status.value} value={status.value}>
+                          {status.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Due Date */}
+                <div>
+                  <label className="block text-sm font-medium text-surface-700 mb-2">
+                    Due Date
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.dueDate}
+                    onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                    className="w-full border border-surface-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                  />
+                </div>
+
+                {/* Actions */}
+                <div className="flex space-x-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCreateModalOpen(false)
+                      setEditingTask(null)
+                      resetForm()
+                    }}
+                    className="flex-1 btn-secondary"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 btn-primary"
+                  >
+                    {editingTask ? 'Update Task' : 'Create Task'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+export default MainFeature
