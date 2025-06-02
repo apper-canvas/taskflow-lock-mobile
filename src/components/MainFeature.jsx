@@ -43,6 +43,16 @@ const [filter, setFilter] = useState('all')
     description: '',
     color: '#6366f1'
   })
+  const [isWorkflowModalOpen, setIsWorkflowModalOpen] = useState(false)
+  const [workflows, setWorkflows] = useState([])
+  const [editingWorkflow, setEditingWorkflow] = useState(null)
+  const [activeWorkflowId, setActiveWorkflowId] = useState('default')
+  const [workflowFormData, setWorkflowFormData] = useState({
+    name: '',
+    description: '',
+    stages: [],
+    transitions: {}
+  })
 const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -74,18 +84,6 @@ const [formData, setFormData] = useState({
         createdAt: new Date().toISOString()
       }
       setProjects([defaultProject])
-    }
-  }, [])
-
-// Save tasks to localStorage whenever tasks change
-  useEffect(() => {
-    localStorage.setItem('taskflow-tasks', JSON.stringify(tasks))
-  }, [tasks])
-
-  // Save projects to localStorage whenever projects change
-  useEffect(() => {
-    localStorage.setItem('taskflow-projects', JSON.stringify(projects))
-  }, [projects])
 
 const resetForm = () => {
     setFormData({
@@ -319,12 +317,103 @@ const openEditModal = (task) => {
         : task
     ))
     toast.success('Project deleted successfully!')
-  }
+}
 
   const getProjectTaskCount = (projectId) => {
     return tasks.filter(task => task.projectId === projectId).length
   }
 
+  // Workflow management functions
+  const resetWorkflowForm = () => {
+    setWorkflowFormData({
+      name: '',
+      description: '',
+      stages: [],
+      transitions: {}
+    })
+  }
+
+  const handleCreateWorkflow = (e) => {
+    e.preventDefault()
+    if (!workflowFormData.name.trim()) {
+      toast.error('Workflow name is required')
+      return
+    }
+
+    const newWorkflow = {
+      id: Date.now().toString(),
+      ...workflowFormData,
+      createdAt: new Date().toISOString()
+    }
+
+    setWorkflows(prev => [newWorkflow, ...prev])
+    resetWorkflowForm()
+    toast.success('Workflow created successfully!')
+  }
+
+  const handleUpdateWorkflow = (e) => {
+    e.preventDefault()
+    if (!workflowFormData.name.trim()) {
+      toast.error('Workflow name is required')
+      return
+    }
+
+    setWorkflows(prev => prev.map(workflow => 
+      workflow.id === editingWorkflow.id 
+        ? { ...workflow, ...workflowFormData }
+        : workflow
+    ))
+    setEditingWorkflow(null)
+    resetWorkflowForm()
+    toast.success('Workflow updated successfully!')
+  }
+
+  const handleDeleteWorkflow = (workflowId) => {
+    if (workflowId === activeWorkflowId) {
+      toast.error('Cannot delete the active workflow')
+      return
+    }
+    
+    setWorkflows(prev => prev.filter(workflow => workflow.id !== workflowId))
+    toast.success('Workflow deleted successfully!')
+  }
+
+  const addStageToWorkflow = (stageName) => {
+    if (!stageName.trim()) return
+    
+    const newStage = {
+      id: Date.now().toString(),
+      name: stageName.trim(),
+      color: '#6366f1',
+      icon: 'Circle'
+    }
+    
+    setWorkflowFormData(prev => ({
+      ...prev,
+      stages: [...prev.stages, newStage]
+    }))
+  }
+
+  const removeStageFromWorkflow = (stageId) => {
+    setWorkflowFormData(prev => ({
+      ...prev,
+      stages: prev.stages.filter(stage => stage.id !== stageId),
+      transitions: Object.fromEntries(
+        Object.entries(prev.transitions).filter(([key]) => key !== stageId)
+          .map(([key, value]) => [key, value.filter(id => id !== stageId)])
+      )
+    }))
+  }
+
+  const updateStageTransitions = (stageId, targetStageIds) => {
+    setWorkflowFormData(prev => ({
+      ...prev,
+      transitions: {
+        ...prev.transitions,
+        [stageId]: targetStageIds
+      }
+    }))
+  }
 // Tag management functions
   const addTagToForm = (tag) => {
     if (!tag.trim()) return
@@ -1432,7 +1521,7 @@ filteredTasks.map((task, index) => {
                       </div>
                     )}
 
-                    <div className="flex space-x-3">
+<div className="flex space-x-3">
                       {editingWorkflow && (
                         <button
                           type="button"
